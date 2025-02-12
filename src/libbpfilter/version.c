@@ -3,12 +3,9 @@
  * Copyright (c) 2023 Meta Platforms, Inc. and affiliates.
  */
 
-#pragma once
+#include "version.h"
 
-#include <linux/bpf.h>
-
-struct counters
+const char *bf_version(void)
 {
-    __u64 packets;
-    __u64 bytes;
-};
+    return BF_VERSION;
+}

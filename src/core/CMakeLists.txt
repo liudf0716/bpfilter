@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2023 Meta Platforms, Inc. and affiliates.
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(bpf REQUIRED IMPORTED_TARGET libbpf)
+
 set(core_srcs
+    ${CMAKE_BINARY_DIR}/include/version.h
     ${CMAKE_CURRENT_SOURCE_DIR}/bpf.h              ${CMAKE_CURRENT_SOURCE_DIR}/bpf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/btf.h              ${CMAKE_CURRENT_SOURCE_DIR}/btf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/chain.h            ${CMAKE_CURRENT_SOURCE_DIR}/chain.c
@@ -27,13 +31,14 @@ set(core_srcs
 )
 
 add_library(core
-    STATIC
+    OBJECT
         ${core_srcs}
 )
 
 target_include_directories(core
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/include
 )
 
 target_link_libraries(core
@@ -41,21 +46,3 @@ target_link_libraries(core
         bf_global_flags
         PkgConfig::bpf
 )
-
-add_library(core.pic
-    STATIC
-        ${core_srcs}
-)
-
-target_include_directories(core.pic
-    PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
-)
-
-target_link_libraries(core.pic
-    PUBLIC
-        bf_global_flags
-        PkgConfig::bpf
-)
-
-set_target_properties(core.pic PROPERTIES POSITION_INDEPENDENT_CODE ON)

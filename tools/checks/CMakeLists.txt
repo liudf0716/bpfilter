@@ -1,16 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2023 Meta Platforms, Inc. and affiliates.
 
-add_subdirectory(harness)
-
-if (WITH_BENCHMARK)
-    add_subdirectory(benchmark)
-endif ()
-
-add_subdirectory(e2e)
-add_subdirectory(unit)
-add_subdirectory(integration)
-add_subdirectory(bpf)
+find_program(CLANG_TIDY_BIN NAMES clang-tidy-18 clang-tidy REQUIRED)
+find_program(CLANG_FORMAT_BIN NAMES clang-format-18 clang-format REQUIRED)
 
 # It's OK to use GLOB_RECURSE here, as it's not the main target for the source
 # files but a secondary one.
@@ -26,12 +18,13 @@ add_custom_command(
     DEPENDS
         ${CMAKE_BINARY_DIR}/compile_commands.json
     COMMAND
-        # Create a new compile_commands.json file without tests/unit files,
-        # as they use specific build flags to file include mock_assert(), which
-        # creates false positive with clang-tidy.
-        ${JQ_BIN}
-            "del(.[] | select((.directory == \"${CMAKE_CURRENT_BINARY_DIR}/unit\")))"
-            ${CMAKE_BINARY_DIR}/compile_commands.json > ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json
+        # Create a new compile_commands.json file without the unit test sources,
+        # as they use specific build flags to include mock_assert(), which
+        # creates false positives with clang-tidy.
+        ${CMAKE_CURRENT_SOURCE_DIR}/filtersrcs
+            --input ${CMAKE_BINARY_DIR}/compile_commands.json
+            --output ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json
+            --filter ".*\/build\/tests\/unit$"
     OUTPUT
         ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json
     COMMENT
@@ -80,7 +73,8 @@ endforeach ()
 # Generated files (especially from Bison and Flex) are required.
 add_custom_target(check
     DEPENDS
-        bfcli
+        bfcli_parser
+        bfcli_lexer
         ${check_stamps}
 )
 

@@ -1,8 +1,18 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (c) 2023 Meta Platforms, Inc. and affiliates.
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(nl REQUIRED IMPORTED_TARGET libnl-3.0)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/bpfilter.service.in
+    ${CMAKE_BINARY_DIR}/output/usr/lib/systemd/system/bpfilter.service
+    @ONLY
+)
+
 add_executable(bpfilter
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+    ${CMAKE_BINARY_DIR}/include/version.h
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/cgen.h              ${CMAKE_CURRENT_SOURCE_DIR}/cgen/cgen.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/cgroup.h            ${CMAKE_CURRENT_SOURCE_DIR}/cgen/cgroup.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/dump.h              ${CMAKE_CURRENT_SOURCE_DIR}/cgen/dump.c
@@ -18,7 +28,6 @@ add_executable(bpfilter
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/printer.h           ${CMAKE_CURRENT_SOURCE_DIR}/cgen/printer.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/program.h           ${CMAKE_CURRENT_SOURCE_DIR}/cgen/program.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/prog/map.h          ${CMAKE_CURRENT_SOURCE_DIR}/cgen/prog/map.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/cgen/reg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/stub.h              ${CMAKE_CURRENT_SOURCE_DIR}/cgen/stub.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/swich.h             ${CMAKE_CURRENT_SOURCE_DIR}/cgen/swich.c
     ${CMAKE_CURRENT_SOURCE_DIR}/cgen/tc.h                ${CMAKE_CURRENT_SOURCE_DIR}/cgen/tc.c
@@ -39,6 +48,7 @@ add_executable(bpfilter
 target_include_directories(bpfilter
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/include
 )
 
 target_link_libraries(bpfilter
@@ -46,4 +56,13 @@ target_link_libraries(bpfilter
         bf_global_flags
         core
         PkgConfig::nl
+)
+
+install(TARGETS bpfilter
+    DESTINATION ${CMAKE_INSTALL_SBINDIR}
+)
+
+install(
+    FILES ${CMAKE_BINARY_DIR}/output/usr/lib/systemd/system/bpfilter.service
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/systemd/system
 )

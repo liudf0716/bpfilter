@@ -99,6 +99,7 @@ enum
 {
     OPT_KEY_ADHOC,
     OPT_KEY_ADHOC_REPEAT,
+    OPT_KEY_NO_DAEMON,
 };
 
 const ::std::string help = "\v\
@@ -106,7 +107,7 @@ const ::std::string help = "\v\
 benchmarks will be skipped, and only the adhoc benchmark will be run. --adhoc \
 benchmarks won't create any output file.";
 
-constexpr std::array<struct argp_option, 7> options {{
+constexpr std::array<struct argp_option, 8> options {{
     {"cli", 'c', "CLI", 0,
      "Path to the bfcli binary. Defaults to 'bfcli' in $PATH.", 0},
     {"daemon", 'd', "DAEMON", 0,
@@ -121,6 +122,9 @@ constexpr std::array<struct argp_option, 7> options {{
      "Adhoc benchmark using RULE, skip all the predefined benchmarks.", 0},
     {"adhoc-repeat", OPT_KEY_ADHOC_REPEAT, "COUNT", 0,
      "Number of times to repeat the adhoc RULE in the chain. Defaults to 1.", 0},
+    {"no-daemon", OPT_KEY_NO_DAEMON, NULL, OPTION_ARG_OPTIONAL,
+     "If set, the benchmark will assume a daemon is already running and won't start one.",
+     0},
     {nullptr},
 }};
 
@@ -140,6 +144,9 @@ int optsParser(int key, char *arg, struct ::argp_state *state)
         break;
     case OPT_KEY_ADHOC_REPEAT:
         config->adhocRepeat = ::std::stoi(arg);
+        break;
+    case OPT_KEY_NO_DAEMON:
+        config->runDaemon = false;
         break;
     case 'c':
         config->bfcli = ::std::string(arg);
@@ -313,6 +320,7 @@ int setup(std::span<char *> args)
     ::benchmark::AddCustomContext("bfcli", config.bfcli);
     ::benchmark::AddCustomContext("bpfilter", config.bpfilter);
     ::benchmark::AddCustomContext("srcdir", config.srcdir);
+    ::benchmark::AddCustomContext("runDaemon", ::std::to_string(config.runDaemon));
 
     if (config.adhoc) {
         ::benchmark::AddCustomContext("adhoc", *config.adhoc);
@@ -325,6 +333,21 @@ int setup(std::span<char *> args)
     }
 
     return 0;
+}
+
+void restorePermissions(::std::string outfile)
+{
+    const char *uid = getenv("SUDO_UID");
+    const char *gid = getenv("SUDO_GID");
+
+    if (uid && gid) {
+        int r = chown(outfile.c_str(), atoi(uid), atoi(gid));
+        if (r) {
+            ::std::cerr << "failed to restore output file permissiosn to SUDO_USER\n";
+            return;
+        }
+        ::std::cout << "sudo is used, output file permissions restored to " << uid << ":" << gid << "\n";
+    }
 }
 
 Sources::Sources(::std::string path):
@@ -680,7 +703,7 @@ Program::~Program() noexcept(false)
 	if (r < 0)
 		return -EINVAL;
 
-    return prog_info.jited_prog_len;
+    return prog_info.xlated_prog_len / sizeof(struct bpf_insn);
 }
 
 int Program::run(int expect, const std::span<const uint8_t> &pkt) const
@@ -787,7 +810,7 @@ int Chain::apply()
     for (const auto &rule: rules_)
         chain += rule + " ";
 
-    const ::std::vector<::std::string> args {"--str", chain};
+    const ::std::vector<::std::string> args {"ruleset", "set", "--str", chain};
 
     const auto [r, out, err] = run(bin_, args);
     if (r != 0) {

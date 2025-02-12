@@ -4,42 +4,21 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(bpfilter
-    VERSION 0.0.1
+    VERSION 0.2.0
     DESCRIPTION "BPF-based packet filtering framework"
-    LANGUAGES C CXX
+    LANGUAGES C
 )
+
+set(PROJECT_VERSION_TWEAK "-devel")
+
+message(NOTICE "bpfilter version ${CMAKE_PROJECT_VERSION}${PROJECT_VERSION_TWEAK}")
 
 include(GNUInstallDirs)
 
-option(WITH_BENCHMARK "Build and run the benchmarks" off)
-
-find_package(Doxygen REQUIRED)
-find_package(PkgConfig REQUIRED)
-find_package(FLEX REQUIRED)
-find_package(BISON REQUIRED)
-
-pkg_check_modules(bpf REQUIRED IMPORTED_TARGET libbpf)
-pkg_check_modules(elf REQUIRED IMPORTED_TARGET libelf)
-pkg_check_modules(cmocka REQUIRED IMPORTED_TARGET cmocka)
-pkg_check_modules(nl REQUIRED IMPORTED_TARGET libnl-3.0)
-
-# Required to get CMake to pass PIE flags to the compiler/linker
-include(CheckPIESupported)
-check_pie_supported()
-if(NOT CMAKE_C_LINK_PIE_SUPPORTED)
-  message(WARNING "PIE is not supported at link time: ${output}.\n"
-                  "PIE link options will not be passed to linker.\n"
-                  "If PIE is enabled by default, test auto discovery might fail.")
-endif()
-
-find_program(SPHINX_BIN sphinx-build REQUIRED)
-find_program(LCOV_BIN lcov REQUIRED)
-find_program(GENHTML_BIN genhtml REQUIRED)
-find_program(CLANG_TIDY_BIN NAMES clang-tidy-18 clang-tidy REQUIRED)
-find_program(CLANG_FORMAT_BIN NAMES clang-format-18 clang-format REQUIRED)
-find_program(CLANG_BIN clang REQUIRED)
-find_program(BPFTOOL_BIN bpftool REQUIRED)
-find_program(JQ_BIN jq REQUIRED)
+option(NO_DOCS "Disable documentation generation" 0)
+option(NO_TESTS "Disable unit, end-to-end, and integration tests" 0)
+option(NO_CHECKS "Disable the check target (clang-tidy and clang-format" 0)
+option(NO_BENCHMARKS "Disable the benchmark" 0)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -63,20 +42,12 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/output/include/bpfilter)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib/pkgconfig)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/bin)
-configure_file(
-    ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.h
-    ${CMAKE_BINARY_DIR}/output/include/bpfilter/bpfilter.h
-)
-configure_file(
-    ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.pc.in
-    ${CMAKE_BINARY_DIR}/output/lib/pkgconfig/bpfilter.pc
-)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output/sbin)
 
 add_library(bf_global_flags INTERFACE)
 target_compile_options(bf_global_flags
     INTERFACE
-        -std=gnu17 -Wall -Wextra
+        -std=gnu17 -Wall -Wextra -fPIC
         $<$<CONFIG:debug>:-O0 -g3 -ggdb -fno-omit-frame-pointer -fsanitize=address -fsanitize=undefined>
         $<$<CONFIG:release>:-O2>
 )
@@ -85,18 +56,32 @@ target_link_options(bf_global_flags
         $<$<CONFIG:debug>:-fsanitize=address -fsanitize=undefined>
 )
 
-add_subdirectory(src)
-add_subdirectory(tests)
-add_subdirectory(doc)
-
-install(TARGETS bpfilter libbpfilter_a libbpfilter_so bfcli)
-
-install(
-    FILES ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bpfilter
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/version.h.in
+    ${CMAKE_BINARY_DIR}/include/version.h
+    @ONLY
 )
 
-install(
-    FILES ${CMAKE_BINARY_DIR}/output/lib/pkgconfig/bpfilter.pc
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-)
+add_subdirectory(src/core)
+add_subdirectory(src/bpfilter)
+add_subdirectory(src/libbpfilter)
+add_subdirectory(src/bfcli)
+
+if (NOT ${NO_DOCS})
+    add_subdirectory(doc)
+endif ()
+
+if (NOT ${NO_TESTS})
+    add_subdirectory(tests/harness)
+    add_subdirectory(tests/e2e)
+    add_subdirectory(tests/unit)
+    add_subdirectory(tests/integration)
+endif ()
+
+if (NOT ${NO_CHECKS})
+    add_subdirectory(tools/checks)
+endif ()
+
+if (NOT ${NO_BENCHMARKS})
+    add_subdirectory(tools/benchmarks)
+endif ()

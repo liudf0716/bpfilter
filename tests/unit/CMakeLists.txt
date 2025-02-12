@@ -54,6 +54,8 @@ function(bf_test_configure_non_build_srcs TARGET)
     endforeach()
 endfunction()
 
+find_program(LCOV_BIN lcov REQUIRED)
+
 enable_testing()
 
 set(bf_test_srcs
@@ -82,11 +84,11 @@ set(bf_test_srcs
 
 get_target_property(core_srcs core SOURCES)
 get_target_property(bpfilter_srcs bpfilter SOURCES)
-get_target_property(lib_srcs libbpfilter_a SOURCES)
+get_target_property(lib_srcs libbpfilter SOURCES)
 
 list(REMOVE_ITEM bpfilter_srcs ${CMAKE_SOURCE_DIR}/src/bpfilter/main.c)
 
-add_executable(unit_tests
+add_executable(unit_bin
     ${CMAKE_CURRENT_SOURCE_DIR}/assert_override.h
     ${CMAKE_CURRENT_SOURCE_DIR}/main.c
     ${CMAKE_CURRENT_SOURCE_DIR}/fake.h  ${CMAKE_CURRENT_SOURCE_DIR}/fake.c
@@ -98,7 +100,7 @@ add_executable(unit_tests
     ${lib_srcs}
 )
 
-bf_test_configure_non_build_srcs(unit_tests
+bf_test_configure_non_build_srcs(unit_bin
     TESTS
         ${bf_test_srcs}
     SOURCES
@@ -107,34 +109,55 @@ bf_test_configure_non_build_srcs(unit_tests
         ${lib_srcs}
 )
 
-# The unit tests executable needs PIC disabled for test auto-discovery to work.
-set_property(TARGET unit_tests PROPERTY POSITION_INDEPENDENT_CODE FALSE)
-
 set_source_files_properties(${bf_test_srcs} ${core_srcs} ${bpfilter_srcs} ${lib_srcs}
     PROPERTIES
         COMPILE_OPTIONS "-ftest-coverage;-fprofile-arcs"
 )
 
-target_compile_options(unit_tests
+target_compile_options(unit_bin
     PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/assert_override.h
 )
 
-target_include_directories(unit_tests
+target_include_directories(unit_bin
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src         # First look for headers in src/
         ${CMAKE_CURRENT_SOURCE_DIR}     # Then use overrides in tests/units
+        ${CMAKE_BINARY_DIR}/include
 )
 
-target_link_libraries(unit_tests
+target_link_libraries(unit_bin
     PRIVATE
         bf_global_flags
         harness
         gcov
 )
 
-add_custom_target(test
-    COMMAND $<TARGET_FILE:unit_tests>
-    DEPENDS unit_tests
+add_custom_command(
+    COMMAND
+        ${CMAKE_COMMAND}
+            -E make_directory
+            ${CMAKE_BINARY_DIR}/output/tests
+    COMMAND
+        $<TARGET_FILE:unit_bin>
+    COMMAND
+        ${LCOV_BIN}
+            --capture
+            --directory ${CMAKE_BINARY_DIR}
+            --output-file ${CMAKE_CURRENT_BINARY_DIR}/lcov.out
+	# Only keep the coverage for bpfilter's source files, not the tests.
+	COMMAND
+        ${LCOV_BIN}
+            --output-file ${CMAKE_BINARY_DIR}/output/tests/lcov.out
+            --extract ${CMAKE_CURRENT_BINARY_DIR}/lcov.out
+            --ignore-errors unused
+            "${CMAKE_SOURCE_DIR}/src/\\*"
+    DEPENDS
+        unit_bin
+    OUTPUT
+        ${CMAKE_BINARY_DIR}/output/tests/lcov.out
     COMMENT "Running tests"
 )
+
+
+add_custom_target(test DEPENDS ${CMAKE_BINARY_DIR}/output/tests/lcov.out)

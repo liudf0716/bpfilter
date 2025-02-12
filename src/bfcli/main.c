@@ -22,6 +22,7 @@
 #include "core/response.h"
 #include "core/set.h"
 #include "libbpfilter/bpfilter.h"
+#include "version.h"
 
 int bf_send(const struct bf_request *request, struct bf_response **response);
 
@@ -158,7 +159,7 @@ end_clean:
     bf_list_clean(&ruleset.chains);
     bf_list_clean(&ruleset.sets);
 
-    return 0;
+    return r;
 }
 
 #define streq(str, expected) (str) && bf_streq(str, expected)
@@ -184,6 +185,15 @@ int main(int argc, char *argv[])
     argc -= argv_skip;
 
     bf_logger_setup();
+
+    // If any of the arguments is --version, print the version and return.
+    for (int i = 0; i < argc; ++i) {
+        if (bf_streq("--version", argv[i])) {
+            bf_info("bfcli version %s, libbpfilter version %s", BF_VERSION,
+                    bf_version());
+            exit(0);
+        }
+    }
 
     if (streq(obj_str, "ruleset") && streq(action_str, "set")) {
         r = _bf_do_ruleset_set(argc, argv);

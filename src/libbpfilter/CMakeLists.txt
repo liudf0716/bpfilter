@@ -7,49 +7,48 @@ set(libbpfilter_srcs
     ${CMAKE_CURRENT_SOURCE_DIR}/generic.h           ${CMAKE_CURRENT_SOURCE_DIR}/generic.c
                                                     ${CMAKE_CURRENT_SOURCE_DIR}/ipt.c
                                                     ${CMAKE_CURRENT_SOURCE_DIR}/nft.c
+    ${CMAKE_BINARY_DIR}/include/version.h           ${CMAKE_CURRENT_SOURCE_DIR}/version.c
 )
 
-add_library(libbpfilter_a STATIC
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.h
+    ${CMAKE_BINARY_DIR}/output/include/bpfilter/bpfilter.h
+)
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.pc.in
+    ${CMAKE_BINARY_DIR}/output/lib/pkgconfig/bpfilter.pc
+    @ONLY
+)
+
+add_library(libbpfilter SHARED
     ${libbpfilter_srcs}
 )
 
-set_target_properties(libbpfilter_a PROPERTIES OUTPUT_NAME bpfilter)
+set_target_properties(libbpfilter PROPERTIES OUTPUT_NAME bpfilter)
 
-target_include_directories(libbpfilter_a
+target_include_directories(libbpfilter
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/include
 )
 
-target_link_libraries(libbpfilter_a
+target_link_libraries(libbpfilter
     PRIVATE
         bf_global_flags
         core
 )
 
-add_library(libbpfilter_so SHARED
-    ${libbpfilter_srcs}
+set_target_properties(libbpfilter PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+
+install(TARGETS libbpfilter)
+
+install(
+    FILES ${CMAKE_SOURCE_DIR}/src/libbpfilter/bpfilter.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bpfilter
 )
 
-set_target_properties(libbpfilter_so PROPERTIES OUTPUT_NAME bpfilter)
-
-target_include_directories(libbpfilter_so
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-)
-
-target_compile_options(libbpfilter_so
-    PRIVATE
-        -fPIC
-)
-
-target_link_libraries(libbpfilter_so
-    PRIVATE
-        bf_global_flags
-        core.pic
-)
-
-add_custom_target(libbpfilter
-    ALL
-    DEPENDS libbpfilter_a libbpfilter_so
-    COMMENT "Compound target to build libbpfilter.a and libbpfilter.so"
+install(
+    FILES ${CMAKE_BINARY_DIR}/output/lib/pkgconfig/bpfilter.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
 )

@@ -10,10 +10,6 @@ Test
 ~~~~
 .. doxygenfile:: test.h
 
-Symbols
-~~~~~~~
-.. doxygenfile:: sym.h
-
 Mocks
 ~~~~~
 .. doxygenfile:: mock.h
@@ -92,12 +88,25 @@ The example below will create an empty chain with a default ``ACCEPT`` policy. W
         assert_success(bf_test_prog_run(prog, 2, pkt_local_ip6_tcp));
     }
 
+Integration tests
+-----------------
 
-.. _tests-benchmark-label:
+``bpfilter``'s repository contains patches to add support for ``bpfilter`` to ``nftables`` and ``iptables``. You first need to install ``nftables``' and ``iptables``' build dependencies:
 
-Benchmarking
-------------
+.. code-block:: shell
 
-.. warning::
+    # Fedora 39+
+    sudo dnf install -y autoconf automake gmp-devel libtool libedit-devel libmnl-devel libnftnl-devel
 
-    In progress.
+    # Ubuntu 24.04
+    sudo apt-get install -y autoconf bison flex libedit-dev libgmp-dev libmnl-dev libnftnl-dev libtool
+
+Then, you can build both from ``bpfilter``'s build directory:
+
+.. code-block:: shell
+
+    make -C $BUILD_DIRECTORY integration
+
+Once this command succeeds, ``nft`` (``nftables``'s command-line tool) and ``iptables`` are available in ``$BUILD_DIRECTORY/tools/install``.
+
+With either ``nft`` or ``iptables``, you can now communicate directly with the ``bpfilter`` daemon instead of the kernel by using the ``--bpf`` flag. This allows your filtering rules to be translated into BPF programs by ``bpfilter``.
